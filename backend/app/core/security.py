@@ -1,36 +1,33 @@
 import hashlib
 import base64
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from app.core.config import settings
 
-# truncate_error=False keeps passlib from raising on passwords > 72 bytes
-# We also pre-hash with SHA-256 so any length password works correctly
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__truncate_error=False,
-)
 
-
-def _prepare(password: str) -> str:
+def _prepare(password: str) -> bytes:
     """
-    Pre-hash the password with SHA-256 then base64-encode.
-    This safely handles passwords of any length within bcrypt's 72-byte limit,
-    and is a well-established pattern (used by Django, Spring Security, etc).
+    SHA-256 + base64-encode the password before passing to bcrypt.
+    Result is always exactly 44 bytes — well within bcrypt's 72-byte limit.
+    This pattern is used by Django, Spring Security, and others.
     """
     digest = hashlib.sha256(password.encode("utf-8")).digest()
-    return base64.b64encode(digest).decode("utf-8")   # always 44 chars — well under 72
+    return base64.b64encode(digest)  # 44 bytes
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(_prepare(password))
+    """Hash a password using bcrypt with SHA-256 pre-hashing."""
+    return bcrypt.hashpw(_prepare(password), bcrypt.gensalt(12)).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(_prepare(plain), hashed)
+    """Verify a plain password against a bcrypt hash."""
+    try:
+        return bcrypt.checkpw(_prepare(plain), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
