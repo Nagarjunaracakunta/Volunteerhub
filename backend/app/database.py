@@ -12,21 +12,29 @@ if is_sqlite:
         connect_args={"check_same_thread": False},
     )
 else:
-    # Production — PostgreSQL (Supabase)
-    # Supabase requires SSL; append sslmode=require if not already present
+    # Production — PostgreSQL (Supabase connection pooler)
+    # Use the pooler URL (port 6543) from Supabase settings — it forces IPv4
+    # which is required on Render's free tier (no IPv6 outbound).
     db_url = settings.DATABASE_URL
+
+    # Ensure SSL
     if "sslmode" not in db_url:
         separator = "&" if "?" in db_url else "?"
         db_url = f"{db_url}{separator}sslmode=require"
 
+    # Detect pooler (PgBouncer) — disable prepared statements
+    is_pooler = "pooler.supabase.com" in db_url or ":6543" in db_url
+    connect_args = {"connect_timeout": 10}
+
     engine = create_engine(
         db_url,
-        # Connection pool tuning for Render free tier (limited connections)
         pool_size=5,
         max_overflow=10,
-        pool_pre_ping=True,       # test connection health before using it
-        pool_recycle=300,         # recycle connections every 5 min
-        connect_args={"connect_timeout": 10},
+        pool_pre_ping=True,
+        pool_recycle=300,
+        connect_args=connect_args,
+        # PgBouncer (transaction mode) doesn't support prepared statements
+        execution_options={"no_parameters": True} if is_pooler else {},
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
