@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.database import engine, Base
+from app.database import engine, Base, check_db_connection
 from app.routers import auth, admin
 # future: from app.routers import host, volunteer, agency
 
@@ -42,4 +42,10 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "app": settings.APP_NAME}
+    db_ok = check_db_connection()
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "app": settings.APP_NAME,
+        "database": "connected" if db_ok else "unreachable",
+        "environment": settings.ENVIRONMENT,
+    }
