@@ -17,14 +17,16 @@ app = FastAPI(
 )
 
 # CORS — allow the React frontend
+# Note: wildcard patterns like "https://*.vercel.app" don't work in FastAPI's
+# CORSMiddleware — use allow_origin_regex for pattern matching instead.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://*.vercel.app",   # allow all Vercel preview URLs
+        settings.FRONTEND_URL,       # exact production Vercel URL from env var
+        "http://localhost:5173",     # Vite dev server
+        "http://localhost:3000",     # alternate dev port
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",  # all Vercel preview deploys
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
